@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>MAPRATURE — Daily Satellite City Reconnaissance Quiz</title>
+    <!-- Preconnect & DNS-Prefetch for Low-Latency Tile & Font Fetching -->
+    <link rel="preconnect" href="https://server.arcgisonline.com" crossorigin />
+    <link rel="dns-prefetch" href="https://server.arcgisonline.com" />
+    <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin />
+    <link rel="dns-prefetch" href="https://tile.openstreetmap.org" />
+    <link rel="preconnect" href="https://unpkg.com" crossorigin />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Leaflet 1.9.4 CSS -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell" aria-label="Maprature Daily Satellite Geography Game">
+      <!-- 1. Full-Screen Unlabeled Satellite Clue Viewport -->
+      <div id="clue-map-viewport" class="clue-map-viewport" role="region" aria-label="Unlabeled Satellite Clue Map"></div>
+
+      <!-- Subtle Orbital Vignette & Fixed Center Crosshair -->
+      <div class="viewport-vignette" aria-hidden="true"></div>
+      <div class="viewport-center-crosshair" aria-hidden="true">
+        <span></span>
+      </div>
+
+      <!-- 2. Floating Top-Left Telemetry Pill -->
+      <header class="hud-pill hud-top-left" aria-label="Game Status Telemetry">
+        <div class="brand-cluster">
+          <span class="brand-beacon" aria-hidden="true"></span>
+          <span class="brand-title">MAPRATURE</span>
+          <span id="hud-challenge-badge" class="telemetry-tag">DAILY #1</span>
+        </div>
+
+        <div class="hud-divider" aria-hidden="true"></div>
+
+        <div class="telemetry-stat">
+          <span class="telemetry-label">ROUND</span>
+          <div class="round-cluster">
+            <span id="hud-round-counter" class="telemetry-value">1 / 5</span>
+            <div id="hud-round-pips" class="round-pips" aria-hidden="true"></div>
+          </div>
+        </div>
+
+        <div class="hud-divider" aria-hidden="true"></div>
+
+        <div class="telemetry-stat">
+          <span class="telemetry-label">SCORE</span>
+          <span id="hud-total-score" class="telemetry-value score-highlight">0</span>
+        </div>
+
+        <div class="hud-divider" aria-hidden="true"></div>
+
+        <div class="hud-actions-inline">
+          <button
+            id="btn-unit-toggle"
+            type="button"
+            class="hud-icon-btn unit-btn"
+            title="Toggle Miles / Kilometers"
+            aria-label="Toggle distance unit between miles and kilometers"
+          >
+            MI
+          </button>
+          <button
+            id="btn-how-to-play"
+            type="button"
+            class="hud-icon-btn"
+            title="Mission Briefing & Rules"
+            aria-label="Open Mission Briefing and Game Rules"
+          >
+            ?
+          </button>
+        </div>
+      </header>
+
+      <!-- 3. Floating Top-Right Scale / Zoom Pill (Dynamic Metro + 20 mi Radius Cap) -->
+      <aside class="hud-pill hud-top-right" aria-label="Satellite Viewport Radius Controls">
+        <div class="zoom-telemetry-meta">
+          <div class="zoom-meta-top">
+            <span class="telemetry-label">RECON RADIUS (METRO + 20 MI)</span>
+            <span id="hud-zoom-context-tag" class="zoom-context-badge">URBAN CORE</span>
+          </div>
+          <div class="zoom-readout-row">
+            <span id="hud-zoom-radius-value" class="telemetry-value zoom-radius-number">1.5 mi rad • 7.1 sq mi</span>
+          </div>
+        </div>
+
+        <div class="zoom-slider-group">
+          <span
+            id="hud-zoom-max-bound"
+            class="zoom-bound-label"
+            title="Maximum regional zoom out (City Metro Radius + 20 miles)"
+          >
+            +20mi
+          </span>
+          <input
+            id="hud-zoom-slider"
+            type="range"
+            min="0"
+            max="100"
+            value="72"
+            class="zoom-range-slider"
+            aria-label="Satellite zoom level between Metro+20mi perimeter and 0.4 mile street grid"
+          />
+          <span class="zoom-bound-label" title="Maximum tight street-level zoom in (0.4 miles)">0.4mi</span>
+        </div>
+
+        <div class="zoom-button-group">
+          <button
+            id="btn-clue-zoom-out"
+            type="button"
+            class="hud-icon-btn"
+            title="Zoom Out toward Metro + 20 mi perimeter"
+            aria-label="Zoom out satellite map"
+          >
+            −
+          </button>
+          <button
+            id="btn-clue-zoom-in"
+            type="button"
+            class="hud-icon-btn"
+            title="Zoom In toward street-level urban core"
+            aria-label="Zoom in satellite map"
+          >
+            +
+          </button>
+          <button
+            id="btn-clue-recenter"
+            type="button"
+            class="hud-icon-btn recenter-btn"
+            title="Re-center on Mystery City Urban Core (Shortcut: R)"
+            aria-label="Re-center satellite map on mystery city"
+          >
+            ⌖
+          </button>
+        </div>
+      </aside>
+
+      <!-- 4. Bottom-Right Floating Action Button: Open Guess Map -->
+      <button
+        id="btn-toggle-guess-map"
+        type="button"
+        class="fab-guess-trigger"
+        aria-label="Toggle World Guess Map Overlay"
+      >
+        <span class="fab-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M2 12h20"></path>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+          </svg>
+        </span>
+        <span id="fab-guess-label">Open Guess Map</span>
+        <kbd class="shortcut-badge" aria-hidden="true">G</kbd>
+      </button>
+
+      <!-- 5. Expandable World Guess Map Overlay Sheet (State 2) -->
+      <section
+        id="guess-map-sheet"
+        class="guess-map-sheet"
+        aria-label="World Location Guess Map"
+      >
+        <div class="guess-sheet-header">
+          <div class="guess-sheet-title-group">
+            <span class="pin-indicator-dot" aria-hidden="true"></span>
+            <span class="guess-sheet-title">WORLD GUESS MAP</span>
+            <span id="guess-pin-coords" class="guess-pin-coords">CLICK WORLD MAP TO DROP PIN</span>
+          </div>
+
+          <div class="guess-sheet-controls">
+            <button
+              id="btn-guess-zoom-in"
+              type="button"
+              class="sheet-ctrl-btn"
+              title="Zoom In World Map"
+              aria-label="Zoom in world guess map"
+            >
+              +
+            </button>
+            <button
+              id="btn-guess-zoom-out"
+              type="button"
+              class="sheet-ctrl-btn"
+              title="Zoom Out World Map"
+              aria-label="Zoom out world guess map"
+            >
+              −
+            </button>
+            <button
+              id="btn-expand-guess-map"
+              type="button"
+              class="sheet-ctrl-btn"
+              title="Expand / Compact Guess Map"
+              aria-label="Expand guess map"
+            >
+              ⤢
+            </button>
+            <button
+              id="btn-close-guess-map"
+              type="button"
+              class="sheet-ctrl-btn"
+              title="Minimize Guess Map"
+              aria-label="Close guess map"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <div id="guess-map-canvas" class="guess-map-canvas"></div>
+
+        <div class="guess-sheet-footer">
+          <button
+            id="btn-confirm-guess"
+            type="button"
+            class="btn-primary-emerald"
+            disabled
+          >
+            Confirm Guess
+          </button>
+        </div>
+      </section>
+
+      <!-- 6. Under-90% Accuracy City Name Bonus Card (State 3) -->
+      <section
+        id="bonus-prompt-card"
+        class="bottom-overlay-card bonus-prompt-card"
+        aria-label="City Name Bonus Opportunity"
+      >
+        <div class="bonus-card-header">
+          <div class="bonus-pill-row">
+            <span class="bonus-opportunity-badge">UNDER 90% ACCURACY • +150 PTS BONUS OPPORTUNITY</span>
+            <span id="bonus-accuracy-badge" class="bonus-accuracy-readout">78.4% PROXIMITY • 784 BASE PTS</span>
+          </div>
+          <h2 class="overlay-card-title">Identify the Mystery City for +150 Bonus Points</h2>
+          <p id="bonus-distance-sub" class="overlay-card-subtitle">
+            Your pin was outside the 90%+ precision zone. Guess the city name below before ending the round!
+          </p>
+        </div>
+
+        <div class="autocomplete-field-wrapper">
+          <ul
+            id="city-autocomplete-list"
+            class="autocomplete-dropdown hidden"
+            role="listbox"
+            aria-label="City Name Suggestions"
+          ></ul>
+
+          <div class="bonus-input-row">
+            <input
+              id="city-bonus-input"
+              type="text"
+              class="city-bonus-input"
+              placeholder="Type city name (e.g. Venice, Cairo, Sydney)..."
+              autocomplete="off"
+              spellcheck="false"
+              aria-label="Guess the city name for +150 bonus points"
+            />
+            <button id="btn-submit-bonus" type="button" class="btn-amber-bonus">
+              Claim +150 Bonus
+            </button>
+          </div>
+        </div>
+
+        <div class="bonus-card-footer">
+          <span class="bonus-hint-text">Use ↑/↓ arrows and Enter to select from autocomplete</span>
+          <button id="btn-skip-bonus" type="button" class="btn-ghost-skip">
+            Skip Bonus &amp; End Round →
+          </button>
+        </div>
+      </section>
+
+      <!-- 7. Round Summary Card (State 4) -->
+      <section
+        id="round-summary-card"
+        class="bottom-overlay-card round-summary-card"
+        aria-label="Round Summary Results"
+      >
+        <div class="summary-top-bar">
+          <div class="summary-badge-group">
+            <span id="summary-round-badge" class="telemetry-tag">ROUND 1 / 5 SUMMARY</span>
+            <div class="pin-legend-inline">
+              <span class="legend-item"><i class="dot-actual"></i> Actual Pin</span>
+              <span class="legend-item"><i class="dot-guess"></i> Guessed Pin</span>
+            </div>
+          </div>
+
+          <div class="summary-map-switcher" role="group" aria-label="Summary Map View Mode">
+            <button id="btn-view-comparison-map" type="button" class="switcher-btn active">
+              Pin Comparison
+            </button>
+            <button id="btn-view-satellite-map" type="button" class="switcher-btn">
+              Target Satellite
+            </button>
+          </div>
+        </div>
+
+        <div class="summary-city-reveal">
+          <div>
+            <h2 id="summary-city-name" class="summary-city-title">Venice, Italy</h2>
+            <p id="summary-city-signature" class="summary-city-desc">
+              Crescent-shaped barrier islands and the S-curve of the Grand Canal inside the Venetian Lagoon.
+            </p>
+          </div>
+          <div class="summary-round-total-box">
+            <span class="telemetry-label">ROUND SCORE</span>
+            <span id="summary-total-points" class="summary-total-score">+1,000 PTS</span>
+          </div>
+        </div>
+
+        <div class="summary-metrics-grid">
+          <div class="summary-metric-cell">
+            <span class="telemetry-label">DISTANCE OFF</span>
+            <span id="summary-distance-value" class="summary-metric-value">12.4 mi (20.0 km)</span>
+          </div>
+          <div class="summary-metric-cell">
+            <span class="telemetry-label">PROXIMITY ACCURACY</span>
+            <span id="summary-accuracy-value" class="summary-metric-value">98.8%</span>
+          </div>
+          <div class="summary-metric-cell">
+            <span class="telemetry-label">BASE POINTS</span>
+            <span id="summary-base-points" class="summary-metric-value">988 pts</span>
+          </div>
+          <div class="summary-metric-cell">
+            <span class="telemetry-label">CITY NAME BONUS</span>
+            <span id="summary-bonus-status" class="summary-metric-value highlight-emerald">
+              90%+ PRECISION
+            </span>
+          </div>
+        </div>
+
+        <div class="summary-actions-row">
+          <button id="btn-next-round" type="button" class="btn-primary-emerald btn-full">
+            Next Round (2/5) →
+          </button>
+        </div>
+      </section>
+
+      <!-- 8. Final Daily Score Modal (State 5) -->
+      <div
+        id="final-modal-backdrop"
+        class="modal-backdrop hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="final-modal-title"
+      >
+        <div class="modal-card final-score-modal">
+          <div class="modal-header">
+            <span id="final-modal-subtitle" class="telemetry-tag">DAILY CHALLENGE #1 • 2026-11-09</span>
+            <h2 id="final-modal-title" class="modal-title">Mission Debrief Complete</h2>
+          </div>
+
+          <div class="final-hero-score">
+            <div class="final-score-main">
+              <span class="telemetry-label">FINAL TOTAL SCORE</span>
+              <div class="final-score-numbers">
+                <span id="final-total-score" class="final-big-score">4,650</span>
+                <span class="final-max-score">/ 5,000+</span>
+              </div>
+            </div>
+            <div class="final-score-meta">
+              <span id="final-rank-badge" class="rank-pill">SOVEREIGN CARTOGRAPHER</span>
+              <span id="final-avg-accuracy" class="avg-accuracy-readout">93.0% AVG ACCURACY</span>
+            </div>
+          </div>
+
+          <div id="final-breakdown-list" class="final-breakdown-list" aria-label="Round by round breakdown"></div>
+
+          <div class="share-preview-block">
+            <span class="telemetry-label">SHAREABLE DAILY TELEMETRY GRID</span>
+            <pre id="final-emoji-preview" class="emoji-grid-preview"></pre>
+          </div>
+
+          <div class="final-modal-actions">
+            <button id="btn-share-score" type="button" class="btn-primary-emerald btn-share">
+              Share Score (Copy Emoji Grid)
+            </button>
+            <div class="final-secondary-actions">
+              <button id="btn-play-practice" type="button" class="btn-secondary-glass">
+                Play Practice Set (New Cities)
+              </button>
+              <button id="btn-replay-daily" type="button" class="btn-secondary-glass">
+                Replay Today's Seed
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 9. How-to-Play / Mission Briefing Modal -->
+      <div
+        id="help-modal-backdrop"
+        class="modal-backdrop hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="help-modal-title"
+      >
+        <div class="modal-card help-modal">
+          <div class="modal-header-row">
+            <div>
+              <span class="telemetry-tag">SATELLITE RECONNAISSANCE PROTOCOL</span>
+              <h2 id="help-modal-title" class="modal-title">How to Play MAPRATURE</h2>
+            </div>
+            <button id="btn-close-help" type="button" class="sheet-ctrl-btn" aria-label="Close briefing">✕</button>
+          </div>
+
+          <ol class="briefing-steps">
+            <li>
+              <strong>1. Inspect the Unlabeled Clue Viewport:</strong>
+              Each round starts zoomed into the mystery city's <code>~1.5 mi</code> urban core. Pan and zoom freely between a <code>0.4 mi</code> street grid and the city's dynamic <code>Metro Radius + 20 mi</code> dashed perimeter. All labels are stripped.
+            </li>
+            <li>
+              <strong>2. Drop Your Guess Pin:</strong>
+              Click <strong>Open Guess Map</strong> (or press <kbd>G</kbd>), drop a pin on the world map where you think the city is located, and click <strong>Confirm Guess</strong>.
+            </li>
+            <li>
+              <strong>3. Proximity Scoring &amp; +150 City Name Bonus:</strong>
+              <ul>
+                <li>Up to <strong>1,000 base points</strong> per round based on proximity accuracy (<code>0% – 100%</code>).</li>
+                <li><strong>90%+ Accuracy (within 100 mi):</strong> Base points are awarded immediately and you advance straight to the Round Summary.</li>
+                <li><strong>Under 90% Accuracy:</strong> Unlocks an optional autocomplete city name guess for <strong>+150 bonus points</strong> before ending the round!</li>
+              </ul>
+            </li>
+            <li>
+              <strong>4. Daily Seed &amp; Shareable Telemetry:</strong>
+              All players receive the same 5 daily cities synced by date seed. Share your 5-round emoji grid after Round 5!
+            </li>
+          </ol>
+        </div>
+      </div>
+
+      <!-- Toast Notification -->
+      <div id="telemetry-toast" class="telemetry-toast" role="status" aria-live="polite"></div>
+    </main>
+
+    <!-- Leaflet JS from CDN (MapController automatically falls back to built-in canvas engine if offline) -->
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>

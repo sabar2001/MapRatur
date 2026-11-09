@@ -1,0 +1,11 @@
+{
+  "name": "mapratur",
+  "version": "1.0.0",
+  "description": "Daily 5-round satellite city geography guessing web game inspired by MapTap and Imperatur",
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "dev": "python3 -m http.server 8080",
+    "test": "node tests/game.test.js"
+  }
+}
